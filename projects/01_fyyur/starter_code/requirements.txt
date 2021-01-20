@@ -23,6 +23,7 @@ MarkupSafe==1.1.1
 mccabe==0.6.1
 paramiko==2.7.2
 pathlib2==2.3.5
+psycopg2==2.8.6
 pycodestyle==2.6.0
 pycparser==2.20
 pylint==2.6.0
