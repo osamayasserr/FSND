@@ -1,7 +1,10 @@
 # Imports
+import os
+import sys
 import json
 import dateutil.parser
 import babel
+import datetime
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
@@ -19,46 +22,96 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 log = create_logger(app)
 
+
 #----------------------------------------------------------------------------#
 # Models.
 #----------------------------------------------------------------------------#
-
-shows_table = db.Table(
-    'shows',
-    db.Column('artist_id', db.Integer, db.ForeignKey(
-        'artists.id'), primary_key=True),
-    db.Column('venue_id', db.Integer, db.ForeignKey(
-        'venues.id'), primary_key=True),
-    db.Column('start_time', db.DateTime, nullable=False)
-)
+class Show(db.Model):
+    __tablename__ = "shows"
+    artist_id = db.Column(db.Integer, db.ForeignKey(
+        'artists.id'), primary_key=True)
+    venue_id = db.Column(db.Integer, db.ForeignKey(
+        'venues.id'), primary_key=True)
+    start_time = db.Column(db.DateTime, primary_key=True)
 
 
 class Venue(db.Model):
     __tablename__ = "venues"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
+    name = db.Column(db.String(120), nullable=False)
+    city = db.Column(db.String(120), nullable=False)
+    state = db.Column(db.String(120), nullable=False)
+    address = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(120), nullable=False)
+    genres = db.Column(db.String(120), nullable=True)
+    website = db.Column(db.String(120), nullable=True)
+    seeking_talent = db.Column(db.Boolean, default=False)
+    seeking_description = db.Column(db.String(120), default='Seeking talents!')
+    image_link = db.Column(
+        db.String(500),
+        nullable=True,
+        default=f"{os.getenv('DEFAULT_IMG')}")
+    facebook_link = db.Column(db.String(120), nullable=True)
     artists = db.relationship(
-        'Artist', secondary=shows_table,
+        'Artist', secondary='shows',
         backref=db.backref('venues', lazy=True)
     )
+
+    def format_l(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'city': self.city,
+            'state': self.state,
+            'address': self.address,
+            'phone': self.phone,
+            'genres': str(self.genres).split(','),
+            'website': self.website,
+            'seeking_talent': self.seeking_talent,
+            'seeking_description': self.seeking_description,
+            'image_link': self.image_link,
+            'facebook_link': self.facebook_link,
+        }
+
+    def format_s(self):
+        return {
+            'id': self.id,
+            'name': self.name
+        }
 
 
 class Artist(db.Model):
     __tablename__ = "artists"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    genres = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
+    name = db.Column(db.String, nullable=False)
+    city = db.Column(db.String(120), nullable=False)
+    state = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(120), nullable=False)
+    genres = db.Column(db.String(120), nullable=True)
+    website = db.Column(db.String(120), nullable=True)
+    seeking_venue = db.Column(db.Boolean, default=False)
+    seeking_description = db.Column(db.String(120), default='Seeking venues!')
+    image_link = db.Column(
+        db.String(500),
+        nullable=True,
+        default=f"{os.getenv('DEFAULT_IMG')}")
+    facebook_link = db.Column(db.String(120), nullable=True)
+
+    def format(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'city': self.city,
+            'state': self.state,
+            'phone': self.phone,
+            'genres': str(self.genres).split(','),
+            'website': self.website,
+            'seeking_venue': self.seeking_venue,
+            'seeking_description': self.seeking_description,
+            'image_link': self.image_link,
+            'facebook_link': self.facebook_link,
+        }
+
 
 #----------------------------------------------------------------------------#
 # Filters.
@@ -91,30 +144,50 @@ def index():
 
 @app.route('/venues')
 def venues():
-    # TODO: replace with real venues data.
-    #       num_shows should be aggregated based on number of upcoming shows per venue.
-    data = [{
-        "city": "San Francisco",
-        "state": "CA",
-        "venues": [{
-            "id": 1,
-            "name": "The Musical Hop",
-            "num_upcoming_shows": 0,
-        }, {
-            "id": 3,
-            "name": "Park Square Live Music & Coffee",
-            "num_upcoming_shows": 1,
-        }]
-    }, {
-        "city": "New York",
-        "state": "NY",
-        "venues": [{
-            "id": 2,
-            "name": "The Dueling Pianos Bar",
-            "num_upcoming_shows": 0,
-        }]
-    }]
-    return render_template('pages/venues.html', areas=data)
+
+    data = []
+    date = datetime.now()
+
+    try:
+
+        # Get all the unique locations (city, state) of venues
+        locations = Venue.query.with_entities(
+            Venue.city.distinct(), Venue.state).all()
+
+        # Loop over all the locations & create a data_dict for each one
+        for location in locations:
+            data_dict = {}
+            city, state = location
+            data_dict['city'] = city
+            data_dict['state'] = state
+
+            # Get all venues in location
+            venue_list = []
+            venues = Venue.query.filter(Venue.city == city).all()
+
+            # Loop over all venues in that location & create a venue_dict for each one
+            for venue in venues:
+                venue_id, venue_dict = venue.id, venue.format_l()
+
+                # Get the number of upcoming shows for that venue
+                venue_dict['num_upcoming_shows'] = Show.query.filter(
+                    Show.venue_id == venue_id,
+                    Show.start_time > date).count()
+                venue_list.append(venue_dict)
+
+            data_dict['venues'] = venue_list
+            data.append(data_dict)
+
+        return render_template('pages/venues.html', areas=data)
+
+    except Exception:
+        db.session.rollback()
+        print(sys.exc_info())
+        flash("Something went wrong. Please try again.")
+        return render_template("pages/home.html")
+
+    finally:
+        db.session.close()
 
 
 @app.route('/venues/search', methods=['POST'])
