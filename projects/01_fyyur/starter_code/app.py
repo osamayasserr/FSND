@@ -23,7 +23,7 @@ log = create_logger(app)
 # Models.
 #----------------------------------------------------------------------------#
 
-shows_table = db.table(
+shows_table = db.Table(
     'shows',
     db.Column('artist_id', db.Integer, db.ForeignKey(
         'artists.id'), primary_key=True),
