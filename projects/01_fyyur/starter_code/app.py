@@ -289,7 +289,7 @@ def show_venue(venue_id):
 
     try:
         # If the user clicks the Delete Venue button
-        if form.validate_on_submit():
+        if request.method == 'POST':
 
             # Delelte the venue from the database
             venue = Venue.query.get(venue_id)
@@ -450,12 +450,23 @@ def search_artists():
         db.session.close()
 
 
-@ app.route('/artists/<int:artist_id>')
+@ app.route('/artists/<int:artist_id>', methods=['GET', 'POST'])
 def show_artist(artist_id):
 
     date = datetime.now()
+    form = DeleteArtist()
 
     try:
+        # If the user clicks the Delete Artist button
+        if request.method == 'POST':
+            artist = Artist.query.get(artist_id)
+            db.session.delete(artist)
+            db.session.commit()
+
+            # Flash a success message and redirect to homepage
+            flash(f'Artist {artist.name} was successfully deleted!')
+            return redirect(url_for('index'))
+
         # Get the artist with id = artist_id & create a data dict
         artist_dict = Artist.query.get(artist_id).format_l()
         artist_dict['upcoming_shows'] = []
@@ -489,7 +500,7 @@ def show_artist(artist_id):
 
         artist_dict['past_shows_count'] = len(past_shows)
 
-        return render_template('pages/show_artist.html', artist=artist_dict)
+        return render_template('pages/show_artist.html', artist=artist_dict, form=form)
 
     except Exception:
         db.session.rollback()
@@ -628,15 +639,33 @@ def create_artist_form():
 
 @ app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
-    # called upon submitting the new artist listing form
-    # TODO: insert form data as a new Venue record in the db, instead
-    # TODO: modify data to be the data object returned from db insertion
+    try:
+        # Get the submitted form data
+        data = request.form
+        name = data.get('name', '')
+        city = data.get('city', '')
+        state = data.get('state', '')
+        phone = data.get('phone', '')
+        genres = ','.join(data.getlist('genres'))
+        facebook_link = data.get('facebook_link', '')
 
-    # on successful db insert, flash success
-    flash('Artist ' + request.form['name'] + ' was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Artist ' + data.name + ' could not be listed.')
-    return render_template('pages/home.html')
+        # Create the venue and insert it into the DB
+        artist = Artist(name, city, state, phone, genres, facebook_link)
+        db.session.add(artist)
+        db.session.commit()
+
+        # On successful insert flash success
+        flash('Artist ' + request.form['name'] + ' was successfully listed!')
+        return redirect(url_for('index'))
+
+    except Exception:
+        db.session.rollback()
+        print(sys.exc_info())
+        flash("Something went wrong. Please try again.")
+        return redirect(url_for('index'))
+
+    finally:
+        db.session.close()
 
 
 #  Shows
