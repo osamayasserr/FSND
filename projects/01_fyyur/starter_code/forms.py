@@ -224,4 +224,6 @@ class ArtistForm(FlaskForm):
         'facebook_link', validators=[URL()]
     )
 
-# TODO IMPLEMENT NEW ARTIST FORM AND NEW SHOW FORM
+
+class DeleteArtist(FlaskForm):
+    delete_btn = SubmitField('Delete Artist')
