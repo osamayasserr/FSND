@@ -36,10 +36,17 @@ class Show(db.Model):
         'venues.id'), primary_key=True)
     start_time = db.Column(db.DateTime, primary_key=True)
 
+    def format_l(self):
+        return {
+            'artist_id': self.artist_id,
+            'venue_id': self.venue_id,
+            'start_time': str(self.start_time)
+        }
+
     def format_s(self):
         return {
             'artist_id': self.artist_id,
-            'start_time': self.start_time
+            'start_time': str(self.start_time)
         }
 
 
@@ -61,8 +68,7 @@ class Venue(db.Model):
         default=f"{os.getenv('DEFAULT_IMG')}")
     facebook_link = db.Column(db.String(120), nullable=True)
     artists = db.relationship(
-        'Artist', secondary='shows',
-        backref=db.backref('venues', lazy=True)
+        'Show', backref=db.backref('venue', lazy=True)
     )
 
     def __init__(self, name, city, state, address, phone, genres, facebook_link):
@@ -120,6 +126,7 @@ class Artist(db.Model):
         nullable=True,
         default=f"{os.getenv('DEFAULT_IMG')}")
     facebook_link = db.Column(db.String(120), nullable=True)
+    shows = db.relationship('Show', backref=db.backref('artist', lazy=True))
 
     def __init__(self, name, city, state, phone, genres, facebook_link):
         self.name = name
@@ -673,46 +680,30 @@ def create_artist_submission():
 
 @ app.route('/shows')
 def shows():
-    # displays list of shows at /shows
-    # TODO: replace with real venues data.
-    #       num_shows should be aggregated based on number of upcoming shows per venue.
-    data = [{
-        "venue_id": 1,
-        "venue_name": "The Musical Hop",
-        "artist_id": 4,
-        "artist_name": "Guns N Petals",
-        "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-        "start_time": "2019-05-21T21:30:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 5,
-        "artist_name": "Matt Quevedo",
-        "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-        "start_time": "2019-06-15T23:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-01T20:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-08T20:00:00.000Z"
-    }, {
-        "venue_id": 3,
-        "venue_name": "Park Square Live Music & Coffee",
-        "artist_id": 6,
-        "artist_name": "The Wild Sax Band",
-        "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-        "start_time": "2035-04-15T20:00:00.000Z"
-    }]
-    return render_template('pages/shows.html', shows=data)
+    data = []
+
+    try:
+        # Get all the shows
+        shows = Show.query.all()
+
+        # Loop over each show and generate its data
+        for show in shows:
+            show_dict = show.format_l()
+            show_dict['artist_name'] = show.artist.name
+            show_dict['artist_image_link'] = show.artist.image_link
+            show_dict['venue_name'] = show.venue.name
+            data.append(show_dict)
+
+        return render_template('pages/shows.html', shows=data)
+
+    except Exception:
+        db.session.rollback()
+        print(sys.exc_info())
+        flash("Something went wrong. Please try again.")
+        return redirect(url_for('index'))
+
+    finally:
+        db.session.close()
 
 
 @ app.route('/shows/create')
