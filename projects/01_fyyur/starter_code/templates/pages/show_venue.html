@@ -47,6 +47,12 @@ block title %}Venue Search{% endblock %} {% block content %}
       <i class="fas fa-moon"></i> Not currently seeking talent
     </p>
     {% endif %}
+    <a
+      href="/venues/{{ venue.id }}/edit"
+      class="btn btn-primary btn-lg"
+      style="margin-top: 4rem"
+      >Edit Venue</a
+    >
   </div>
   <div class="col-sm-6">
     <img src="{{ venue.image_link }}" alt="Venue Image" />
@@ -90,6 +96,6 @@ block title %}Venue Search{% endblock %} {% block content %}
     {% endfor %}
   </div>
 </section>
-{{ wtf.quick_form(form) }}
-<!-- <form method="POST">{{ form.delete_btn(class='btn btn-primary btn-lg') }}</form> -->
+
+<form method="POST">{{ form.delete_btn(class='btn btn-primary btn-lg') }}</form>
 {% endblock %}
