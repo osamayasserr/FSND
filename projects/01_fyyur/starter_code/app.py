@@ -31,10 +31,15 @@ log = create_logger(app)
 class Show(db.Model):
     __tablename__ = "shows"
     artist_id = db.Column(db.Integer, db.ForeignKey(
-        'artists.id'), primary_key=True)
+        'artists.id', ondelete="CASCADE"), primary_key=True)
     venue_id = db.Column(db.Integer, db.ForeignKey(
-        'venues.id'), primary_key=True)
+        'venues.id', ondelete="CASCADE"), primary_key=True)
     start_time = db.Column(db.DateTime, primary_key=True)
+
+    def __init__(self, artist_id, venue_id, start_time):
+        self.artist_id = artist_id
+        self.venue_id = venue_id
+        self.start_time = start_time
 
     def format_l(self):
         return {
@@ -68,7 +73,9 @@ class Venue(db.Model):
         default=f"{os.getenv('DEFAULT_IMG')}")
     facebook_link = db.Column(db.String(120), nullable=True)
     artists = db.relationship(
-        'Show', backref=db.backref('venue', lazy=True)
+        'Show',
+        cascade='all, delete-orphan',
+        backref=db.backref('venue', lazy=True)
     )
 
     def __init__(self, name, city, state, address, phone, genres, facebook_link):
@@ -126,7 +133,10 @@ class Artist(db.Model):
         nullable=True,
         default=f"{os.getenv('DEFAULT_IMG')}")
     facebook_link = db.Column(db.String(120), nullable=True)
-    shows = db.relationship('Show', backref=db.backref('artist', lazy=True))
+    shows = db.relationship(
+        'Show',
+        cascade='all, delete-orphan',
+        backref=db.backref('artist', lazy=True))
 
     def __init__(self, name, city, state, phone, genres, facebook_link):
         self.name = name
@@ -380,7 +390,7 @@ def create_venue_submission():
 
         # On successful insert flash success
         flash('Venue ' + request.form['name'] + ' was successfully listed!')
-        return redirect(url_for('index'))
+        return redirect(url_for('venues'))
 
     except Exception:
         db.session.rollback()
@@ -663,7 +673,7 @@ def create_artist_submission():
 
         # On successful insert flash success
         flash('Artist ' + request.form['name'] + ' was successfully listed!')
-        return redirect(url_for('index'))
+        return redirect(url_for('artists'))
 
     except Exception:
         db.session.rollback()
@@ -708,7 +718,6 @@ def shows():
 
 @ app.route('/shows/create')
 def create_shows():
-    # renders form. do not touch.
     form = ShowForm()
     return render_template('forms/new_show.html', form=form)
 
@@ -717,13 +726,30 @@ def create_shows():
 def create_show_submission():
     # called to create new shows in the db, upon submitting new show listing form
     # TODO: insert form data as a new Show record in the db, instead
+    try:
+        # Get the submitted form data
+        data = request.form
+        artist_id = data.get('artist_id')
+        venue_id = data.get('venue_id')
+        start_time = data.get('start_time')
 
-    # on successful db insert, flash success
-    flash('Show was successfully listed!')
-    # TODO: on unsuccessful db insert, flash an error instead.
-    # e.g., flash('An error occurred. Show could not be listed.')
-    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
-    return render_template('pages/home.html')
+        # Create the show and insert it to the DB
+        show = Show(artist_id, venue_id, start_time)
+        db.session.add(show)
+        db.session.commit()
+
+        # On successful insert flash success
+        flash('Show was successfully listed!')
+        return redirect(url_for('shows'))
+
+    except Exception:
+        db.session.rollback()
+        print(sys.exc_info())
+        flash("Something went wrong. Please try again.")
+        return redirect(url_for('index'))
+
+    finally:
+        db.session.close()
 
 
 @ app.errorhandler(404)
