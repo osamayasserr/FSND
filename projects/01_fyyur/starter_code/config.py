@@ -5,9 +5,13 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or os.urandom(32)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    @staticmethod
+    def init_app(app):
+        pass
+
 
 class DevConfig(Config):
-    DEBUG = True
+    ENV = 'development'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DB_URL') or \
         f"postgresql://postgres:{os.environ.get('DB_PASS')}@localhost:5432/fyyur"
 
