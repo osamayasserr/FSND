@@ -14,11 +14,12 @@ from flask.logging import create_logger
 from logging import Formatter, FileHandler
 from flask_wtf import Form
 from forms import *
+from config import config
 
 # Flask app initialization & configuration
 app = Flask(__name__)
 moment = Moment(app)
-app.config.from_object('config')
+app.config.from_object(config['default'])
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 bootstrap = Bootstrap(app)
