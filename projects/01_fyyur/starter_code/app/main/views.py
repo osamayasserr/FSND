@@ -1,219 +1,17 @@
-# Imports
-import os
 import sys
-import json
-import dateutil.parser
-import babel
-import datetime
-from flask import Flask, render_template, request, Response, flash, redirect, url_for
-from flask_moment import Moment
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_bootstrap import Bootstrap
-from flask.logging import create_logger
-from logging import Formatter, FileHandler
-from flask_wtf import Form
-from forms import *
-
-# Flask app initialization & configuration
-app = Flask(__name__)
-moment = Moment(app)
-app.config.from_object('config')
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-bootstrap = Bootstrap(app)
-log = create_logger(app)
+from datetime import datetime
+from . import main
+from flask import render_template, request, redirect, url_for, flash
+from ..models import db, Artist, Venue, Show
+from .forms import ShowForm, VenueForm, ArtistForm, DeleteArtist, DeleteVenue
 
 
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-class Show(db.Model):
-    __tablename__ = "shows"
-    artist_id = db.Column(db.Integer, db.ForeignKey(
-        'artists.id', ondelete="CASCADE"), primary_key=True)
-    venue_id = db.Column(db.Integer, db.ForeignKey(
-        'venues.id', ondelete="CASCADE"), primary_key=True)
-    start_time = db.Column(db.DateTime, primary_key=True)
-
-    def __init__(self, artist_id, venue_id, start_time):
-        self.artist_id = artist_id
-        self.venue_id = venue_id
-        self.start_time = start_time
-
-    def format_l(self):
-        return {
-            'artist_id': self.artist_id,
-            'venue_id': self.venue_id,
-            'start_time': str(self.start_time)
-        }
-
-    def format_s(self):
-        return {
-            'artist_id': self.artist_id,
-            'start_time': str(self.start_time)
-        }
-
-
-class Venue(db.Model):
-    __tablename__ = "venues"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    address = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    genres = db.Column(db.String(120), nullable=True)
-    website = db.Column(db.String(120), nullable=True)
-    seeking_talent = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String(120), default='Seeking talents!')
-    image_link = db.Column(
-        db.String(500),
-        nullable=True,
-        default=f"{os.getenv('DEFAULT_IMG')}")
-    facebook_link = db.Column(db.String(120), nullable=True)
-    artists = db.relationship(
-        'Show',
-        cascade='all, delete-orphan',
-        backref=db.backref('venue', lazy=True)
-    )
-
-    def __init__(self, name, city, state, address, phone, genres, facebook_link):
-        self.name = name
-        self.city = city
-        self.state = state
-        self.address = address
-        self.phone = phone
-        self.genres = genres
-        self.facebook_link = facebook_link
-
-    def format_l(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'city': self.city,
-            'state': self.state,
-            'address': self.address,
-            'phone': self.phone,
-            'genres': str(self.genres).split(','),
-            'website': self.website,
-            'seeking_talent': self.seeking_talent,
-            'seeking_description': self.seeking_description,
-            'image_link': self.image_link,
-            'facebook_link': self.facebook_link,
-        }
-
-    def format_m(self):
-        return {
-            'venue_id': self.id,
-            'venue_name': self.name,
-            'venue_image_link': self.image_link
-        }
-
-    def format_s(self):
-        return {
-            'id': self.id,
-            'name': self.name
-        }
-
-
-class Artist(db.Model):
-    __tablename__ = "artists"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    city = db.Column(db.String(120), nullable=False)
-    state = db.Column(db.String(120), nullable=False)
-    phone = db.Column(db.String(120), nullable=False)
-    genres = db.Column(db.String(120), nullable=True)
-    website = db.Column(db.String(120), nullable=True)
-    seeking_venue = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String(120), default='Seeking venues!')
-    image_link = db.Column(
-        db.String(500),
-        nullable=True,
-        default=f"{os.getenv('DEFAULT_IMG')}")
-    facebook_link = db.Column(db.String(120), nullable=True)
-    shows = db.relationship(
-        'Show',
-        cascade='all, delete-orphan',
-        backref=db.backref('artist', lazy=True))
-
-    def __init__(self, name, city, state, phone, genres, facebook_link):
-        self.name = name
-        self.city = city
-        self.state = state
-        self.phone = phone
-        self.genres = genres
-        self.facebook_link = facebook_link
-
-    def format_l(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'city': self.city,
-            'state': self.state,
-            'phone': self.phone,
-            'genres': str(self.genres).split(','),
-            'website': self.website,
-            'seeking_venue': self.seeking_venue,
-            'seeking_description': self.seeking_description,
-            'image_link': self.image_link,
-            'facebook_link': self.facebook_link,
-        }
-
-    def format_m(self):
-        return {
-            'artist_id': self.id,
-            'artist_name': self.name,
-            'artist_image_link': self.image_link
-        }
-
-    def format_s(self):
-        return {
-            'id': self.id,
-            'name': self.name
-        }
-
-
-#----------------------------------------------------------------------------#
-# Filters.
-#----------------------------------------------------------------------------#
-
-
-def format_datetime(value, format='medium'):
-    date = dateutil.parser.parse(value)
-    if format == 'full':
-        format = "EEEE MMMM, d, y 'at' h:mma"
-    elif format == 'medium':
-        format = "EE MM, dd, y h:mma"
-    return babel.dates.format_datetime(date, format)
-
-
-app.jinja_env.filters['datetime'] = format_datetime
-
-
-#----------------------------------------------------------------------------#
-# Shell Context.
-#----------------------------------------------------------------------------#
-
-@app.shell_context_processor
-def add_shell_context():
-    return dict(db=db, Artist=Artist, Venue=Venue, Show=Show)
-
-#----------------------------------------------------------------------------#
-# Controllers.
-#----------------------------------------------------------------------------#
-
-
-@app.route('/')
+@main.route('/')
 def index():
     return render_template('pages/home.html')
 
 
-#  Venues
-#  ----------------------------------------------------------------
-
-@app.route('/venues')
+@main.route('/venues')
 def venues():
 
     data = []
@@ -254,13 +52,13 @@ def venues():
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        redirect(url_for('index'))
+        redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@app.route('/venues/search', methods=['POST'])
+@main.route('/venues/search', methods=['POST'])
 def search_venues():
 
     data = {}
@@ -292,13 +90,13 @@ def search_venues():
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        redirect(url_for('index'))
+        redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@ app.route('/venues/<int:venue_id>', methods=['GET', 'POST'])
+@main.route('/venues/<int:venue_id>', methods=['GET', 'POST'])
 def show_venue(venue_id):
 
     date = datetime.now()
@@ -315,7 +113,7 @@ def show_venue(venue_id):
 
             # Flash a success message and redirect to homepage
             flash(f'Venue {venue.name} was successfully deleted!')
-            return redirect(url_for('index'))
+            return redirect(url_for('.index'))
 
         # Get the venue with id = venue_id & create a data dict
         venue_dict = Venue.query.get(venue_id).format_l()
@@ -356,21 +154,19 @@ def show_venue(venue_id):
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
-#  Create Venue
-#  ----------------------------------------------------------------
 
 
-@ app.route('/venues/create', methods=['GET'])
+@main.route('/venues/create', methods=['GET'])
 def create_venue_form():
     form = VenueForm()
     return render_template('forms/new_venue.html', form=form)
 
 
-@ app.route('/venues/create', methods=['POST'])
+@main.route('/venues/create', methods=['POST'])
 def create_venue_submission():
     try:
         # Get the submitted form data
@@ -390,22 +186,19 @@ def create_venue_submission():
 
         # On successful insert flash success
         flash('Venue ' + request.form['name'] + ' was successfully listed!')
-        return redirect(url_for('venues'))
+        return redirect(url_for('.venues'))
 
     except Exception:
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
-#  Artists
-#  ----------------------------------------------------------------
 
-
-@ app.route('/artists')
+@main.route('/artists')
 def artists():
 
     data = []
@@ -422,13 +215,13 @@ def artists():
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@ app.route('/artists/search', methods=['POST'])
+@main.route('/artists/search', methods=['POST'])
 def search_artists():
 
     data = {}
@@ -461,13 +254,13 @@ def search_artists():
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        redirect(url_for('index'))
+        redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@ app.route('/artists/<int:artist_id>', methods=['GET', 'POST'])
+@main.route('/artists/<int:artist_id>', methods=['GET', 'POST'])
 def show_artist(artist_id):
 
     date = datetime.now()
@@ -482,7 +275,7 @@ def show_artist(artist_id):
 
             # Flash a success message and redirect to homepage
             flash(f'Artist {artist.name} was successfully deleted!')
-            return redirect(url_for('index'))
+            return redirect(url_for('.index'))
 
         # Get the artist with id = artist_id & create a data dict
         artist_dict = Artist.query.get(artist_id).format_l()
@@ -523,16 +316,13 @@ def show_artist(artist_id):
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
-#  Update
-#  ----------------------------------------------------------------
 
-
-@ app.route('/artists/<int:artist_id>/edit', methods=['GET'])
+@main.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
 
     form = ArtistForm()
@@ -546,12 +336,12 @@ def edit_artist(artist_id):
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
     finally:
         db.session.close()
 
 
-@ app.route('/artists/<int:artist_id>/edit', methods=['POST'])
+@main.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
     try:
         # Get the submitted form data
@@ -576,19 +366,19 @@ def edit_artist_submission(artist_id):
 
         # On successful insert flash success
         flash('Artist ' + request.form['name'] + ' was successfully updated!')
-        return redirect(url_for('show_artist', artist_id=artist_id))
+        return redirect(url_for('.show_artist', artist_id=artist_id))
 
     except Exception:
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@ app.route('/venues/<int:venue_id>/edit', methods=['GET'])
+@main.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
 
     form = VenueForm()
@@ -602,12 +392,12 @@ def edit_venue(venue_id):
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
     finally:
         db.session.close()
 
 
-@ app.route('/venues/<int:venue_id>/edit', methods=['POST'])
+@main.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
     try:
         # Get the submitted form data
@@ -633,28 +423,25 @@ def edit_venue_submission(venue_id):
 
         # On successful insert flash success
         flash('Venue ' + request.form['name'] + ' was successfully updated!')
-        return redirect(url_for('show_venue', venue_id=venue_id))
+        return redirect(url_for('.show_venue', venue_id=venue_id))
 
     except Exception:
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
-#  Create Artist
-#  ----------------------------------------------------------------
 
-
-@ app.route('/artists/create', methods=['GET'])
+@main.route('/artists/create', methods=['GET'])
 def create_artist_form():
     form = ArtistForm()
     return render_template('forms/new_artist.html', form=form)
 
 
-@ app.route('/artists/create', methods=['POST'])
+@main.route('/artists/create', methods=['POST'])
 def create_artist_submission():
     try:
         # Get the submitted form data
@@ -673,22 +460,19 @@ def create_artist_submission():
 
         # On successful insert flash success
         flash('Artist ' + request.form['name'] + ' was successfully listed!')
-        return redirect(url_for('artists'))
+        return redirect(url_for('.artists'))
 
     except Exception:
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-#  Shows
-#  ----------------------------------------------------------------
-
-@ app.route('/shows')
+@main.route('/shows')
 def shows():
     data = []
 
@@ -710,22 +494,20 @@ def shows():
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
 
 
-@ app.route('/shows/create')
+@main.route('/shows/create')
 def create_shows():
     form = ShowForm()
     return render_template('forms/new_show.html', form=form)
 
 
-@ app.route('/shows/create', methods=['POST'])
+@main.route('/shows/create', methods=['POST'])
 def create_show_submission():
-    # called to create new shows in the db, upon submitting new show listing form
-    # TODO: insert form data as a new Show record in the db, instead
     try:
         # Get the submitted form data
         data = request.form
@@ -740,52 +522,13 @@ def create_show_submission():
 
         # On successful insert flash success
         flash('Show was successfully listed!')
-        return redirect(url_for('shows'))
+        return redirect(url_for('.shows'))
 
     except Exception:
         db.session.rollback()
         print(sys.exc_info())
         flash("Something went wrong. Please try again.")
-        return redirect(url_for('index'))
+        return redirect(url_for('.index'))
 
     finally:
         db.session.close()
-
-
-@ app.errorhandler(404)
-def not_found_error(error):
-    return render_template('errors/404.html'), 404
-
-
-@ app.errorhandler(500)
-def server_error(error):
-    return render_template('errors/500.html'), 500
-
-
-if not app.debug:
-    file_handler = FileHandler('error.log')
-    file_handler.setFormatter(
-        Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
-    )
-    log.setLevel(log.INFO)
-    file_handler.setLevel(log.INFO)
-    log.addHandler(file_handler)
-    log.info('errors')
-
-#----------------------------------------------------------------------------#
-# Launch.
-#----------------------------------------------------------------------------#
-
-# Default port:
-'''
-if __name__ == '__main__':
-    app.run()
-'''
-
-# Or specify port manually:
-'''
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
-'''

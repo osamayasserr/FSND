@@ -1,11 +1,29 @@
 import os
 
-SECRET_KEY = os.urandom(32)
 
-basedir = os.path.abspath(os.path.dirname(__file__))
+class Config:
+    SECRET_KEY = os.environ.get('SECRET_KEY') or os.urandom(32)
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-DEBUG = True
+    @staticmethod
+    def init_app(app):
+        pass
 
-SQLALCHEMY_DATABASE_URI = f"postgresql://postgres:{os.getenv('DB_PASS')}@localhost:5432/fyyur"
 
-SQLALCHEMY_TRACK_MODIFICATIONS = False
+class DevConfig(Config):
+    ENV = 'development'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DB_URL') or \
+        f"postgresql://postgres:{os.environ.get('DB_PASS')}@localhost:5432/fyyur"
+
+
+class TestConfig(Config):
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DB_URL') or \
+        f"postgresql://postgres:{os.environ.get('DB_PASS')}@localhost:5432/fyyur"
+
+
+config = {
+    'development': DevConfig,
+    'testing': TestConfig,
+    'default': DevConfig
+}
