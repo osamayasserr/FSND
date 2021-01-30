@@ -1,4 +1,5 @@
 import os
+basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 class Config:
@@ -19,7 +20,7 @@ class DevConfig(Config):
 class TestConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DB_URL') or \
-        f"postgresql://postgres:{os.environ.get('DB_PASS')}@localhost:5432/fyyur"
+        'sqlite:///' + os.path.join(basedir, 'test_db.sqlite')
 
 
 config = {
