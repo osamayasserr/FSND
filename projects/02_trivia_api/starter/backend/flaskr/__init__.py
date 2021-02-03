@@ -49,7 +49,7 @@ def create_app(test_config=None):
         except Exception:
             print(sys.exc_info())
             db.session.rollback()
-            abort(500)
+            abort(422)
 
         finally:
             db.session.close()
@@ -79,13 +79,14 @@ def create_app(test_config=None):
                 'success': True,
                 'total_questions': questions.total,
                 'questions': questions_data,
-                'categories': categories_data
+                'categories': categories_data,
+                'current_category': None
             }), 200
 
         except Exception:
             print(sys.exc_info())
             db.session.rollback()
-            abort(500)
+            abort(422)
 
         finally:
             db.session.close()
@@ -112,11 +113,12 @@ def create_app(test_config=None):
         except Exception:
             print(sys.exc_info())
             db.session.rollback()
-            abort(500)
+            abort(422)
 
         finally:
             db.session.close()
 
+    # POST /questions
     @app.route('/questions', methods=['POST'])
     def add_question():
         try:
@@ -143,21 +145,44 @@ def create_app(test_config=None):
         except Exception:
             print(sys.exc_info())
             db.session.rollback()
-            abort(500)
+            abort(422)
 
         finally:
             db.session.close()
 
-    '''
-  @TODO: 
-  Create a POST endpoint to get questions based on a search term. 
-  It should return any questions for whom the search term 
-  is a substring of the question. 
+    # POST /questions/search
+    @app.route('/questions/search', methods=['POST'])
+    def search_questions():
+        try:
+            # Get the search term
+            data = request.get_json()
+            search_term = data.get('searchTerm')
 
-  TEST: Search by any phrase. The questions list will update to include 
-  only question that include that string within their question. 
-  Try using the word "title" to start. 
-  '''
+            # if not search_term:
+            #     abort(400)
+
+            # Query the database based on search
+            questions = Question.query.filter(
+                Question.question.ilike(f'%{search_term}%')).all()
+            questions = [question.format() for question in questions]
+
+            # if not questions:
+            #     abort(404)
+
+            return jsonify({
+                'success': True,
+                'questions': questions,
+                'total_questions': len(questions),
+                'current_category': None
+            }), 200
+
+        except Exception:
+            print(sys.exc_info())
+            db.session.rollback()
+            abort(422)
+
+        finally:
+            db.session.close()
 
     '''
   @TODO: 
