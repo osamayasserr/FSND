@@ -72,6 +72,9 @@ def create_app(test_config=None):
             for category in categories:
                 categories_data[category.id] = category.type
 
+            if not questions_data or not categories:
+                abort(404)
+
             return jsonify({
                 'success': True,
                 'total_questions': questions.total,
@@ -87,13 +90,32 @@ def create_app(test_config=None):
         finally:
             db.session.close()
 
-    '''
-  @TODO: 
-  Create an endpoint to DELETE question using a question ID. 
+    # DELETE /questions/id
+    @app.route('/questions/<int:id>', methods=['DELETE'])
+    def delete_question(id):
+        try:
+            # Get the question by id
+            question = Question.query.get(id)
 
-  TEST: When you click the trash icon next to a question, the question will be removed.
-  This removal will persist in the database and when you refresh the page. 
-  '''
+            if not question:
+                abort(404)
+
+            # Delete question
+            db.session.delete(question)
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'id': question.id
+            }), 200
+
+        except Exception:
+            print(sys.exc_info())
+            db.session.rollback()
+            abort(500)
+
+        finally:
+            db.session.close()
 
     '''
   @TODO: 
