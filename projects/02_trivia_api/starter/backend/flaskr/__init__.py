@@ -184,14 +184,6 @@ def create_app(test_config=None):
         finally:
             db.session.close()
 
-    '''
-    @TODO:
-    Create a GET endpoint to get questions based on category.
-
-    TEST: In the "List" tab / main screen, clicking on one of the
-    categories in the left column will cause only questions of that
-    category to be shown.
-    '''
     # GET /categories/id/questions
     @app.route('/categories/<int:id>/questions')
     def get_questions_by_category(id):
@@ -219,22 +211,70 @@ def create_app(test_config=None):
         finally:
             db.session.close()
 
-    '''
-  @TODO: 
-  Create a POST endpoint to get questions to play the quiz. 
-  This endpoint should take category and previous question parameters 
-  and return a random questions within the given category, 
-  if provided, and that is not one of the previous questions. 
+    # POST /quizzes
+    @app.route('/quizzes', methods=['POST'])
+    def play_quiz():
+        try:
+            data = request.get_json()
+            previous_questions = data.get('previous_questions')
+            quiz_category = data.get('quiz_category')
 
-  TEST: In the "Play" tab, after a user selects "All" or a category,
-  one question at a time is displayed, the user is allowed to answer
-  and shown whether they were correct or not. 
-  '''
+            # Get the questions by category
+            if quiz_category['id'] == 0:
+                questions = Question.query.all()
+            else:
+                questions = Question.query.filter_by(
+                    category=quiz_category['id']).all()
 
-    '''
-  @TODO: 
-  Create error handlers for all expected errors 
-  including 404 and 422. 
-  '''
+            # Filter out previous questions
+            while True:
+                question = random.choice(questions)
+                if question.id not in previous_questions:
+                    break
+
+            return jsonify({
+                'success': True,
+                'question': question.format()
+            }), 200
+
+        except Exception:
+            print(sys.exc_info())
+            db.session.rollback()
+            abort(422)
+
+        finally:
+            db.session.close()
+
+    @app.errorhandler(400)
+    def bad_request(error):
+        return jsonify({
+            'success': False,
+            'error': 400,
+            'message': 'Bad request error'
+        }), 400
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({
+            'success': False,
+            'error': 404,
+            'message': 'Resource not found'
+        }), 404
+
+    @app.errorhandler(500)
+    def internal_server_error(error):
+        return jsonify({
+            'success': False,
+            'error': 500,
+            'message': 'An error has occured, please try again'
+        }), 500
+
+    @app.errorhandler(422)
+    def unprocesable_entity(error):
+        return jsonify({
+            'success': False,
+            'error': 422,
+            'message': 'Unprocessable entity'
+        }), 422
 
     return app
